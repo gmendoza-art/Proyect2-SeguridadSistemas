@@ -148,13 +148,91 @@ client1.ovpn
 <img src="https://i.ibb.co/68csPTH/VPN-en-linux.png" alt="VPN en linux"></p>
 <p><strong>Finalizado la configuración del servidor VPN!</strong></p>
 <h2 id="configuración-del-servidor-active-directory">Configuración del servidor Active Directory</h2>
-<p>Para la configuración del servidor de active directory se utilizo un servidor ubuntu 18.0 que fue realizado en una maquina virtual y posteriormente fue unido a la VPN para el acceso a todos los clientes, se utilizo ldap para el servidor funcionara con active directory.</p>
+<p>Para la configuración del servidor de active directory se utilizo un servidor ubuntu 18.0 que fue realizado en una maquina virtual y posteriormente fue unido a la VPN para el acceso a todos los clientes, se utilizo samba, ldap y phpldapadmin para que el servidor funcionara con active directory.</p>
 <p>Para la configuración del active directory empezamos con lo siguiente:</p>
-<p>Con este comando podremos ver si el archivo se genero de forma correcta:</p>
+<p>Con este comando actualizamos los paquetes en el servidor AD:</p>
 <ul>
-<li>ls ~/client-configs/files</li>
+<li>sudo apt-get update</li>
+<li>sudo apt-get upgrade</li>
 </ul>
-<p><strong>Finalizado la configuración del servidor VPN!</strong></p>
+<p>Con el siguiente comando podremos ver la ip del servidor que nos servirá para configurarla en el servidor:</p>
+<ul>
+<li>ip r</li>
+</ul>
+<pre><code>default via 192.168.0.1 dev enp0s3 proto dhcp src 192.168.0.7 metric 100
+192.168.0.0/24 dev enp0s3 proto kernel scope link src 192.168.0.8
+192.168.0.1 dev enp0s3 proto dhcp scope link src 192.168.0.8 metric 100
+</code></pre>
+<p>Con la ip entonces debemos de modificar el siguiente archivo:</p>
+<ul>
+<li>sudo nano /etc/netplan/00-installer-config.yaml</li>
+</ul>
+<p>En el servidor quedo de la siguiente manera:</p>
+<pre><code># This is the network config written by 'subiquity'
+network:
+  ethernets:
+    enp0s3:
+      dhcp4: true
+#      addresses: [192.168.24.4/24]
+#      gateway4: 192.168.24.2
+      nameservers:
+        search: [gmendoza.local]
+        addresses: [192.168.0.8]
+  version: 2
+</code></pre>
+<p>Para aplicar los cambios se debe ejecutar el siguiente comando:</p>
+<ul>
+<li>sudo netplan apply</li>
+</ul>
+<p>Luego de esto se deben de instalar los paquetes para trabajar con ldap que servirá como active directory en el servidor</p>
+<ul>
+<li>sudo apt install samba krb5-config winbind smbclient</li>
+</ul>
+<p>En la configuración de Kerberos se utilizara para el Default Kerberos gmendoza.local el servidor de Kerberos sera servidor-ubuntu y el servidor administrativo de Kerberos sera servidor-ubuntu, luego de que termine la configuración se debe ejecutar el siguiente comando:</p>
+<ul>
+<li>sudo samba-tool domain provision</li>
+</ul>
+<p>Se solicitara que se ingrese el servidor utilizado que será gmendoza.local luego se solicitara la IP que será la misma que se utilizo al principio 192.168.0.8 y para terminar se debe ingresar la contraseña que se utilizara para el usuario administrador de AD, luego de que termina la configuración se deben realizar algunos ajustes utilizando el siguiente comando:</p>
+<ul>
+<li>sudo nano /etc/resolv.conf</li>
+</ul>
+<p>Dentro de este archivo debe de quedar de la siguiente manera:</p>
+<pre><code>nameserver 192.168.0.8
+domain gmendoza.local
+search gmendoza.local
+</code></pre>
+<p>Luego se debe de reiniciar el servidor, cuando termine el reinicio se debe iniciar el servicio de samba utilizamos el siguiente comando.</p>
+<ul>
+<li>sudo systemctl start samba-ad-dc</li>
+</ul>
+<p>Luego de que veamos de que el servicio funciona correctamente debemos de instalar ldap utilizando el siguiente comando:</p>
+<ul>
+<li>sudo apt install slapd ldap-utils</li>
+<li>sudo dpkg-reconfigure slapd</li>
+</ul>
+<p>Con el ultimo comando solicitara el dominio que seria gmendoza.local luego se debe de ingresar la contraseña para el usuario administrador, debemos de validar el servicio de slapd utilizando el siguiente comando:</p>
+<ul>
+<li>sudo service slapd status</li>
+</ul>
+<p>Luego debemos de instlar phpldapadmin para eso utilizamos el siguiente comando:</p>
+<p>-sudo apt install phpldapadmin</p>
+<p>Se debe configurar algunos cambios en el archivo phpldapadmin/config.php para eso utilizamos el siguiente comando:</p>
+<p>-sudo nano /etc/phpldapadmin/config.php</p>
+<p>Las siguientes líneas en el archivo deben de quedar como se ve a continuación:</p>
+<pre><code>$config-&gt;custom-&gt;appearance['hide_template_warning'] = true;
+$servers-&gt;setValue('server','base',array('dc=gmendoza,dc=local'));
+$servers-&gt;setValue('loign','bind_id','cn=admin, dc=gmendoza, dc=local');
+$servers-&gt;setValue('login','anon_bind',false);
+</code></pre>
+<p>Por ultimo debemos de reiniciar el servicio de slapd utilizando el siguiente comando:</p>
+<ul>
+<li>sudo service slapd restart</li>
+</ul>
+<p>Luego de terminado esto podemos ingresar mediante la VPN a phpldapadmin como se puede ver en la siguiente imagen:<br>
+<img src="https://i.ibb.co/wg4Zkdz/Login-de-phpldapadmin.png" alt="Login"></p>
+<p>Al ingresar al Active Directory podemos crear una unidad organizacional con sus respectivos activos, en este caso seria como se puede ver en la siguiente imagen:<br>
+<img src="https://i.ibb.co/B4rFV1Z/OU-en-phpldapadmin.png" alt="OU"></p>
+<p><strong>Finalizado la configuración del servidor de Active Directory!</strong></p>
 </div>
 </body>
 
