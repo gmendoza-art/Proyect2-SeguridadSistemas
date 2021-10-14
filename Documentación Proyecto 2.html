@@ -1,0 +1,161 @@
+﻿<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Documentación Proyecto 2</title>
+  <link rel="stylesheet" href="https://stackedit.io/style.css" />
+</head>
+
+<body class="stackedit">
+  <div class="stackedit__html"><p><strong>Gari Lester Mendoza Bedoya 7690-17-14228</strong></p>
+<h1 id="proyecto-2">Proyecto 2</h1>
+<p>Para la realización del proyecto 2 de seguridad en sistemas fue necesario contar con los siguientes aspectos, crear un servidor utilizando AWS que funcionara como servidor VPN, luego de eso se debe crear un servidor para el Active Directory lo cual fue realizado en un servidor virtual y luego conectado a la VPN para que todos tengan acceso al servidor AD.</p>
+<h2 id="configuración-del-servidor-vpn">Configuración del Servidor VPN</h2>
+<p>Lo primero que se realizo fue el servidor VPN el cual se configuro utilizando OpenVPN el cual nos proporciona una VPN gratuita y que cumple con los aspectos de seguridad. Para la creación de la VPN fue necesario crear dos servidores un servidor CA que es el encargado de firmar los requerimientos en este caso el primer requerimiento que se debe de firmar es el del servidor lo cual sirve para que el servidor pueda ser configurado como VPN, algunos de los comandos utilizados para firmar el servidor son los siguientes:</p>
+<ul>
+<li>cd ~/easy-rsa</li>
+<li>./easyrsa import-req /tmp/server.req server</li>
+<li>./easyrsa sign-req server server</li>
+<li>scp pki/issued/server.crt ubuntu@your_vpn_server_ip:/tmp</li>
+<li>scp pki/ca.crt ubuntu@your_vpn_server_ip:/tmp</li>
+</ul>
+<p>Esos serian los comandos que se deben utilizar para firmar el requerimiento para el servidor el cual genera un certificado que será trasladado al servidor VPN utilizando scp. Los mismos pasos para firmar un requerimiento del servidor son los mismos que se utilizan para firmar un requerimiento del cliente.</p>
+<p>Luego se tiene la configuración del servidor VPN para esto se utilizaran los siguientes comandos.</p>
+<ul>
+<li>sudo nano /etc/openvpn/server/server.conf</li>
+</ul>
+<p>Se debe de realizar los siguientes cambios en el archivo server.conf</p>
+<pre class=" language-bash"><code class="prism  language-bash"><span class="token punctuation">;</span>tls-auth ta.key 0 <span class="token comment"># This file is secret</span>
+tls-crypt ta.key
+</code></pre>
+<pre class=" language-bash"><code class="prism  language-bash"><span class="token punctuation">;</span>cipher AES-256-CBC
+cipher AES-256-GCM
+</code></pre>
+<pre class=" language-bash"><code class="prism  language-bash"><span class="token comment">#Agregar al archivo</span>
+auth SHA256
+</code></pre>
+<pre class=" language-bash"><code class="prism  language-bash"><span class="token punctuation">;</span>dh dh2048.pem
+dh none
+</code></pre>
+<pre class=" language-bash"><code class="prism  language-bash">user nobody
+group nogroup
+</code></pre>
+<pre class=" language-bash"><code class="prism  language-bash"><span class="token comment">#Eliminar los comentarios de esta linea</span>
+push <span class="token string">"redirect-gateway def1 bypass-dhcp"</span>
+</code></pre>
+<pre class=" language-bash"><code class="prism  language-bash"><span class="token comment">#Eliminar los comentarios de esta linea</span>
+push <span class="token string">"dhcp-option DNS 208.67.222.222"</span>
+push <span class="token string">"dhcp-option DNS 208.67.220.220"</span>
+</code></pre>
+<p>Luego se debe de agregar una linea al siguiente archivo</p>
+<ul>
+<li>sudo nano /etc/sysctl.conf</li>
+</ul>
+<pre class=" language-bash"><code class="prism  language-bash">net.ipv4.ip_forward <span class="token operator">=</span> 1
+</code></pre>
+<p>Cuando se finaliza estas configuraciones se deben de ejecutar los siguientes comandos para iniciar el servido de OpenVPN</p>
+<ul>
+<li>sudo systemctl -f enable openvpn-server@server.service</li>
+<li>sudo systemctl start openvpn-server@server.service</li>
+<li>sudo systemctl status openvpn-server@server.service</li>
+</ul>
+<p>Luego se debe de configurar el archivo base que se utilizara para crear los archivos .ovpn, se realizan los cambios en el siguiente archivo:</p>
+<ul>
+<li>nano ~/client-configs/base.conf</li>
+</ul>
+<pre class=" language-bash"><code class="prism  language-bash"><span class="token comment"># Colocar la IP del servidor y el puerto configurado</span>
+remote your_server_ip 1194
+</code></pre>
+<pre class=" language-bash"><code class="prism  language-bash"><span class="token comment"># Colocar el protocolo utilizado en este caso UDP</span>
+proto udp
+</code></pre>
+<pre class=" language-bash"><code class="prism  language-bash"><span class="token comment"># Eliminar los comentarios</span>
+user nobody
+group nogroup
+</code></pre>
+<pre class=" language-bash"><code class="prism  language-bash"><span class="token comment"># Eliminar los comentarios de las siguientes lineas</span>
+<span class="token punctuation">;</span>ca ca.crt
+<span class="token punctuation">;</span>cert client.crt
+<span class="token punctuation">;</span>key client.key
+</code></pre>
+<pre class=" language-bash"><code class="prism  language-bash"><span class="token comment"># Agregar comentarios a esta linea</span>
+<span class="token punctuation">;</span>tls-auth ta.key 1
+</code></pre>
+<pre class=" language-bash"><code class="prism  language-bash"><span class="token comment"># Agregar las siguientes lineas</span>
+cipher AES-256-GCM
+auth SHA256
+</code></pre>
+<pre class=" language-bash"><code class="prism  language-bash"><span class="token comment"># Agregar las siguientes lineas</span>
+key-direction 1
+</code></pre>
+<pre class=" language-bash"><code class="prism  language-bash"><span class="token comment"># Agregar las siguientes lineas</span>
+<span class="token punctuation">;</span> script-security 2
+<span class="token punctuation">;</span> up /etc/openvpn/update-resolv-conf
+<span class="token punctuation">;</span> down /etc/openvpn/update-resolv-conf
+</code></pre>
+<pre class=" language-bash"><code class="prism  language-bash"><span class="token comment"># Agregar las siguientes lineas</span>
+<span class="token punctuation">;</span> script-security 2
+<span class="token punctuation">;</span> up /etc/openvpn/update-systemd-resolved
+<span class="token punctuation">;</span> down /etc/openvpn/update-systemd-resolved
+<span class="token punctuation">;</span> down-pre
+<span class="token punctuation">;</span> dhcp-option DOMAIN-ROUTE <span class="token keyword">.</span>
+</code></pre>
+<p>Luego se debe de configurar el siguiente archivo:</p>
+<ul>
+<li>nano ~/client-configs/make_config.sh</li>
+</ul>
+<pre class=" language-bash"><code class="prism  language-bash"><span class="token shebang important">#!/bin/bash</span>
+
+<span class="token comment"># First argument: Client identifier</span>
+
+KEY_DIR<span class="token operator">=</span>~/client-configs/keys
+OUTPUT_DIR<span class="token operator">=</span>~/client-configs/files
+BASE_CONFIG<span class="token operator">=</span>~/client-configs/base.conf
+
+<span class="token function">cat</span> <span class="token variable">${BASE_CONFIG}</span> \
+    <span class="token operator">&lt;</span><span class="token punctuation">(</span>echo -e <span class="token string">'&lt;ca&gt;'</span><span class="token punctuation">)</span> \
+    <span class="token variable">${KEY_DIR}</span>/ca.crt \
+    <span class="token operator">&lt;</span><span class="token punctuation">(</span>echo -e <span class="token string">'&lt;/ca&gt;\n&lt;cert&gt;'</span><span class="token punctuation">)</span> \
+    <span class="token variable">${KEY_DIR}</span>/<span class="token variable">${1}</span>.crt \
+    <span class="token operator">&lt;</span><span class="token punctuation">(</span>echo -e <span class="token string">'&lt;/cert&gt;\n&lt;key&gt;'</span><span class="token punctuation">)</span> \
+    <span class="token variable">${KEY_DIR}</span>/<span class="token variable">${1}</span>.key \
+    <span class="token operator">&lt;</span><span class="token punctuation">(</span>echo -e <span class="token string">'&lt;/key&gt;\n&lt;tls-crypt&gt;'</span><span class="token punctuation">)</span> \
+    <span class="token variable">${KEY_DIR}</span>/ta.key \
+    <span class="token operator">&lt;</span><span class="token punctuation">(</span>echo -e <span class="token string">'&lt;/tls-crypt&gt;'</span><span class="token punctuation">)</span> \
+    <span class="token operator">&gt;</span> <span class="token variable">${OUTPUT_DIR}</span>/<span class="token variable">${1}</span>.ovpn
+</code></pre>
+<p>Por ultimo se debe de generar el archivo .ovpn del cliente que se configuro utilizando los siguientes comandos.</p>
+<ul>
+<li>cd ~/client-configs</li>
+<li>./make_config.sh client1</li>
+</ul>
+<p>Con este comando podremos ver si el archivo se genero de forma correcta:</p>
+<ul>
+<li>ls ~/client-configs/files</li>
+</ul>
+<pre><code># Output
+client1.ovpn
+</code></pre>
+<p>Luego debemos de trasladar los documentos que se utilizaran para la conexión a la VPN que serian ta.key, ca.crt, client1.ovpn, client1.crt, client1.key.  Para esto utilizaremos el siguiente comando utilizado ftp</p>
+<ul>
+<li>sftp ubunut@openvpn_server_ip:client-configs/files/client1.ovpn ~/</li>
+</ul>
+<p>Ya con la finalización de la configuración podemos conectar los nuevos usuarios a la VPN, como se puede ver en la siguiente imagen donde se conecta una maquina windows a la VPN.</p>
+<p><img src="https://i.ibb.co/48cpWfD/VPN-en-windows.png" alt="VPN en windows"></p>
+<p>Luego podemos ver una maquina en linux conectada en la VPN<br>
+<img src="https://i.ibb.co/68csPTH/VPN-en-linux.png" alt="VPN en linux"></p>
+<p><strong>Finalizado la configuración del servidor VPN!</strong></p>
+<h2 id="configuración-del-servidor-active-directory">Configuración del servidor Active Directory</h2>
+<p>Para la configuración del servidor de active directory se utilizo un servidor ubuntu 18.0 que fue realizado en una maquina virtual y posteriormente fue unido a la VPN para el acceso a todos los clientes, se utilizo ldap para el servidor funcionara con active directory.</p>
+<p>Para la configuración del active directory empezamos con lo siguiente:</p>
+<p>Con este comando podremos ver si el archivo se genero de forma correcta:</p>
+<ul>
+<li>ls ~/client-configs/files</li>
+</ul>
+<p><strong>Finalizado la configuración del servidor VPN!</strong></p>
+</div>
+</body>
+
+</html>
